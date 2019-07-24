@@ -1,0 +1,15 @@
+
+
+name: plot
+src: plot.cpp wrappy.cpp
+inc: include
+dep: lang.pybind11
+mod:
+- name: lang.python3
+  compile:
+    with: numpy
+  link:
+    delete: -Wl,-stack_size,1000000
+- name: lang.pybind11
+install: plot/bin
+mode: none
