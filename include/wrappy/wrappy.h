@@ -71,14 +71,14 @@ private:
     PyObject* obj_;
 };
 
-// Note that this is an input iterator, iterators cannot 
+// Note that this is an input iterator, iterators cannot
 // be stored, rewound, or compared to anything but "end"
 struct PythonIterator {
     PythonIterator& operator++(); // pre-increment
     PythonObject operator*();     // dereference
-    // *only* for comparison to "end", python iterators have 
+    // *only* for comparison to "end", python iterators have
     // no concept of position or comparability
-    bool operator!=(const PythonIterator&); 
+    bool operator!=(const PythonIterator&);
 
 private:
     PythonIterator(bool, PythonObject);
@@ -102,12 +102,12 @@ void addModuleSearchPath(const std::string& path);
 
 // There is one quirk of call() for the case of member methods:
 //
-//     call("module.A.foo") 
+//     call("module.A.foo")
 //
 // calls the unbound method "foo", so it is necessary to provide an instance
 // of A as the first argument, while
 //
-//     auto a = call("module.A"); call(a, "foo"); 
+//     auto a = call("module.A"); call(a, "foo");
 //
 // calls the method "foo" that is already bound to a, so providing an explicit
 // self argument in that case is an error.

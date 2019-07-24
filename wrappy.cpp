@@ -1,4 +1,4 @@
-// Python header must be included first since they insist on 
+// Python header must be included first since they insist on
 // unconditionally defining some system macros
 // (http://bugs.python.org/issue1045893, still broken in python3.4)
 #include <Python.h>
@@ -40,7 +40,8 @@ void wrappyInitialize()
     Py_Initialize();
 
     // Setting a dummy value since many libraries require sys.argv[0] to exist
-    char* dummy_args[] = {const_cast<char*>("wrappy"), nullptr};
+    wchar_t name[16] = L"wrappy";
+    wchar_t* dummy_args[] = {const_cast<wchar_t*>(name), nullptr};
     PySys_SetArgvEx(1, dummy_args, 0);
 
     wrappy::None  = PythonObject(PythonObject::borrowed{}, Py_None);
@@ -179,7 +180,7 @@ double PythonObject::floating() const
 
 const char* PythonObject::str() const
 {
-    return PyString_AsString(obj_);
+  return PyUnicode_AsUTF8(obj_);
 }
 
 PythonObject::operator bool() const
@@ -200,7 +201,7 @@ PythonObject construct(long long ll)
 
 PythonObject construct(int i)
 {
-    return PythonObject(PythonObject::owning {}, PyInt_FromLong(i));
+    return PythonObject(PythonObject::owning {}, PyLong_FromLong(i));
 }
 
 PythonObject construct(double d)
@@ -210,7 +211,7 @@ PythonObject construct(double d)
 
 PythonObject construct(const std::string& str)
 {
-    return PythonObject(PythonObject::owning {}, PyString_FromString(str.c_str()));
+    return PythonObject(PythonObject::owning {}, PyUnicode_FromString(str.c_str()));
 }
 
 PythonObject construct(const std::vector<PythonObject>& v)
@@ -235,7 +236,7 @@ void addModuleSearchPath(const std::string& path)
     auto syspath = PySys_GetObject(&pathString[0]); // Borrowed reference
 
     PythonObject pypath(PythonObject::owning {},
-        PyString_FromString(path.c_str()));
+        PyUnicode_FromString(path.c_str()));
 
     if (!pypath) {
         throw WrappyError("Wrappy: Can't allocate memory for string.");
@@ -354,7 +355,7 @@ PythonObject callWithArgs(
     PythonObject function = loadObject(from, name);
 
     if (!function) {
-        throw WrappyError("Wrappy: " 
+        throw WrappyError("Wrappy: "
             "Lookup of function " + functionName + " failed.");
     }
 
@@ -444,7 +445,7 @@ std::map<const char*, PythonObject> to_map(PyObject* pykwargs)
     PyObject *key, *value;
     Py_ssize_t pos = 0;
     while (PyDict_Next(pykwargs, &pos, &key, &value)) {
-        const char* str = PyString_AsString(key);
+        const char* str = PyUnicode_AsUTF8(key);
         PythonObject obj(PythonObject::borrowed{}, value);
         kwargs.emplace(str, obj);
     }
@@ -453,12 +454,12 @@ std::map<const char*, PythonObject> to_map(PyObject* pykwargs)
 }
 
 PyObject* trampolineWithData(PyObject* data, PyObject* pyargs, PyObject* pykwargs) {
-    if (!PyCObject_Check(data)) {
+    if (!PyCapsule_CheckExact(data)) {
         throw WrappyError("Trampoline data corrupted");
     }
 
-    LambdaWithData fun = reinterpret_cast<LambdaWithData>(PyCObject_AsVoidPtr(data));
-    void* userdata = PyCObject_GetDesc(data);
+    LambdaWithData fun = reinterpret_cast<LambdaWithData>(PyCapsule_GetPointer(data, "lambda"));
+    void* userdata = PyCapsule_GetContext(data);
     auto args = to_vector(pyargs);
     auto kwargs = to_map(pykwargs);
 
@@ -467,11 +468,11 @@ PyObject* trampolineWithData(PyObject* data, PyObject* pyargs, PyObject* pykwarg
 
 PyObject* trampolineNoData(PyObject* data, PyObject* pyargs, PyObject* pykwargs)
 {
-    if (!PyCObject_Check(data)) {
+    if (!PyCapsule_CheckExact(data)) {
         throw WrappyError("Trampoline data corrupted");
     }
 
-    Lambda fun = reinterpret_cast<Lambda>(PyCObject_AsVoidPtr(data));
+    Lambda fun = reinterpret_cast<Lambda>(PyCapsule_GetPointer(data, "lambda"));
     auto args = to_vector(pyargs);
     auto kwargs = to_map(pykwargs);
 
@@ -487,18 +488,14 @@ PyMethodDef trampolineWithDataMethod {"trampoline2", reinterpret_cast<PyCFunctio
 
 PythonObject construct(Lambda lambda)
 {
-    PyObject* pydata = PyCObject_FromVoidPtr(reinterpret_cast<void*>(lambda), nullptr);
+    PyObject * pydata = PyCapsule_New(reinterpret_cast<void*>(lambda), "lambda", nullptr);
     return PythonObject(PythonObject::owning{}, PyCFunction_New(&trampolineNoDataMethod, pydata));
 }
 
 PythonObject construct(LambdaWithData lambda, void* userdata)
 {
-    PyObject* pydata;
-    if (!userdata) {
-        pydata = PyCObject_FromVoidPtr(reinterpret_cast<void*>(lambda), nullptr);
-    } else { // python returns an error if FromVoidPtrAndDesc is called with desc being null
-        pydata = PyCObject_FromVoidPtrAndDesc(reinterpret_cast<void*>(lambda), userdata, nullptr);
-    }
+    PyObject * pydata = PyCapsule_New(reinterpret_cast<void*>(lambda), "lambda", nullptr);
+    if (userdata) PyCapsule_SetContext(pydata, userdata);
     return PythonObject(PythonObject::owning{}, PyCFunction_New(&trampolineWithDataMethod, pydata));
 }
 
