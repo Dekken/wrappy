@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <wrappy/detail/sys.hpp>
 
 struct _object;
 typedef _object PyObject;
@@ -165,3 +166,4 @@ public:
 } // end namespace wrappy
 
 #include <wrappy/detail/call.hpp>
+#include <wrappy/detail/wrappy.ipp>

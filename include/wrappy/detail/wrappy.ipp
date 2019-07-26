@@ -1,3 +1,4 @@
+#pragma once
 // Python header must be included first since they insist on
 // unconditionally defining some system macros
 // (http://bugs.python.org/issue1045893, still broken in python3.4)
@@ -22,8 +23,14 @@ using namespace wrappy;
 PyObject *s_EmptyTuple;
 PyObject *s_EmptyDict;
 
-__attribute__((constructor))
-void wrappyInitialize()
+
+// __attribute__((destructor))
+void wrappyFinalize()
+{
+    Py_Finalize();
+}
+
+INITIALIZER(wrappyInitialize)
 {
     // Initialize python interpreter.
     // The module search path is initialized as following:
@@ -50,13 +57,7 @@ void wrappyInitialize()
 
     s_EmptyTuple = Py_BuildValue("()");
     s_EmptyDict  = Py_BuildValue("{}");
-}
-
-
-__attribute__((destructor))
-void wrappyFinalize()
-{
-    Py_Finalize();
+    atexit(wrappyFinalize);
 }
 
 PythonObject loadBuiltin(const std::string& name)
